@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>Subjects → Topics → Chunks — Notes (SQLite + IndexedDB)</title>
+<title>TECH Notes — Subjects → Topics → Chunks</title>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <style>
 :root{--bg:#0f1220;--card:#181c2f;--ink:#eef1ff;--muted:#9aa3c7;--line:#2a3052;--ok:#7bd88f;--bad:#ff7575;--accent:#6ca8ff}
@@ -62,7 +62,7 @@ a.link{color:#8fb5ff;text-decoration:none}
 <body>
 <div class="wrap">
   <h1>
-    Subjects → Topics → Chunks — Notes (SQLite + IndexedDB)
+    TECH Notes — Subjects → Topics → Chunks
     <span id="dbStatus" class="tag">DB: starting…</span>
   </h1>
 
@@ -122,7 +122,8 @@ a.link{color:#8fb5ff;text-decoration:none}
 
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(()=>{});
+  // use a distinct SW for the TECH app
+  navigator.serviceWorker.register('./sw.tech.js', { scope: './' }).catch(()=>{});
 }
 </script>
 
@@ -130,6 +131,10 @@ if ('serviceWorker' in navigator) {
 (async () => {
   const statusEl = document.getElementById('dbStatus');
   const SQLJS_BASE = './lib/sqljs/';
+
+  /* ---------- namespace THIS APP ---------- */
+  const APP_TAG = 'tech'; // change to 'history' in the other app
+
   const setStatus = (t, ok=true) => {
     statusEl.textContent = t;
     statusEl.style.borderColor = ok ? 'var(--line)' : 'var(--bad)';
@@ -145,10 +150,10 @@ if ('serviceWorker' in navigator) {
     });
   }
 
-  /* ---------- IndexedDB ---------- */
-  const IDB_NAME = 'study-notes-tech';
-  const STORE_SQLITE = 'sqlite';
-  const STORE_IMAGES = 'images';
+  /* ---------- IndexedDB (namespaced) ---------- */
+  const IDB_NAME = `study-notes-idb-${APP_TAG}`;
+  const STORE_SQLITE = `sqlite-${APP_TAG}`;
+  const STORE_IMAGES = `images-${APP_TAG}`;
   const idb = await new Promise((resolve,reject)=>{
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = () => {
@@ -175,7 +180,7 @@ if ('serviceWorker' in navigator) {
   /* ---------- sql.js ---------- */
   await loadScript(SQLJS_BASE + 'sql-wasm.js');
   const SQL = await window.initSqlJs({ locateFile: f => SQLJS_BASE + f });
-  const raw = await idbGet(STORE_SQLITE, 'main');
+  const raw = await idbGet(STORE_SQLITE, `main-${APP_TAG}`);
   const db = raw ? new SQL.Database(raw instanceof Uint8Array ? raw : new Uint8Array(raw)) : new SQL.Database();
 
   db.exec(`
@@ -219,7 +224,7 @@ if ('serviceWorker' in navigator) {
   `);
 
   let saveTimer;
-  const saveDB = async ()=>{ await idbSet(STORE_SQLITE,'main',db.export()); setStatus('Saved ✓'); };
+  const saveDB = async ()=>{ await idbSet(STORE_SQLITE, `main-${APP_TAG}`, db.export()); setStatus('Saved ✓'); };
   const scheduleSave = ()=>{ clearTimeout(saveTimer); saveTimer=setTimeout(saveDB,250); };
 
   const driver = {
@@ -249,14 +254,14 @@ if ('serviceWorker' in navigator) {
     driver.exec(`delete from notes where id=?`, [noteId]);
   }
 
-  /* ---------- collapse state ---------- */
+  /* ---------- collapse state (namespaced) ---------- */
   const collapsed = {
-    subjects: new Set(JSON.parse(localStorage.getItem('coll-subjects')||'[]')),
-    topics:   new Set(JSON.parse(localStorage.getItem('coll-topics')||'[]'))
+    subjects: new Set(JSON.parse(localStorage.getItem(`coll-subjects-${APP_TAG}`)||'[]')),
+    topics:   new Set(JSON.parse(localStorage.getItem(`coll-topics-${APP_TAG}`)||'[]'))
   };
   const saveCollapse = () => {
-    localStorage.setItem('coll-subjects', JSON.stringify([...collapsed.subjects]));
-    localStorage.setItem('coll-topics',   JSON.stringify([...collapsed.topics]));
+    localStorage.setItem(`coll-subjects-${APP_TAG}`, JSON.stringify([...collapsed.subjects]));
+    localStorage.setItem(`coll-topics-${APP_TAG}`,   JSON.stringify([...collapsed.topics]));
   };
 
   /* ---------- UI refs ---------- */
@@ -458,7 +463,7 @@ if ('serviceWorker' in navigator) {
     for(const f of [...e.target.files]){
       const ext=(f.name.split('.').pop()||'png').toLowerCase();
       const id = crypto.randomUUID();
-      const previewPath=`/images/${details.scope}/${details.id}/${id}.${ext}`;
+      const previewPath=`/${APP_TAG}-images/${details.scope}/${details.id}/${id}.${ext}`;
       await writeBlob(previewPath,f);
       driver.exec(`insert into notes(scope,scope_id,kind,title,path) values(?,?,?,?,?)`,
         [details.scope,details.id,'image',f.name,previewPath]);
@@ -540,7 +545,7 @@ if ('serviceWorker' in navigator) {
     for(const f of [...fi.files]){
       const ext=(f.name.split('.').pop()||'png').toLowerCase();
       const id=crypto.randomUUID();
-      const path=`/images/n${noteId}/${id}.${ext}`;
+      const path=`/${APP_TAG}-images/n${noteId}/${id}.${ext}`;
       await writeBlob(path,f);
       driver.exec(`insert into image_pages(note_id,page,path) values(?,?,?)`, [noteId,next++,path]);
       const head = driver.select(`select path from notes where id=?`, [noteId])[0];
