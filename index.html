@@ -151,9 +151,9 @@ if ('serviceWorker' in navigator) {
   }
 
   /* ---------- IndexedDB (namespaced) ---------- */
-  const IDB_NAME = `study-notes-idb-${APP_TAG}`;
-  const STORE_SQLITE = `sqlite-${APP_TAG}`;
-  const STORE_IMAGES = `images-${APP_TAG}`;
+  const IDB_NAME = 'study-notes-idb-tech';
+  const STORE_SQLITE = 'sqlite';
+  const STORE_IMAGES = 'images';
   const idb = await new Promise((resolve,reject)=>{
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = () => {
