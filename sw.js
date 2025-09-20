@@ -6,7 +6,7 @@
 */
 
 const APP_NS = 'tech';               // <— unique namespace for this app
-const CACHE_NAME = `study-notes-${APP_NS}-v1`;
+const CACHE_NAME = `study-notes-${APP_NS}-v2`;
 
 const CORE_ASSETS = [
   './',
