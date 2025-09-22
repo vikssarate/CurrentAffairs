@@ -75,7 +75,8 @@ a.link{color:#8fb5ff;text-decoration:none}
           <input id="couchUrl" type="url" placeholder="https://couch.techstudy.me"/>
           <input id="couchDb" type="text" placeholder="db name (current)"/>
         </div>
-        <div class="row">
+        <!-- Hidden creds (DB is open). Remove style to show again. -->
+        <div class="row" id="credsRow" style="display:none">
           <input id="couchUser" type="text" placeholder="user"/>
           <input id="couchPass" type="password" placeholder="password"/>
         </div>
@@ -736,14 +737,17 @@ if ('serviceWorker' in navigator) {
       if(!this.cfg.url || !this.cfg.db) throw new Error('Set Couch URL and DB first.');
       return this.cfg.url.replace(/\/+$/,'') + '/' + encodeURIComponent(this.cfg.db);
     },
+    // CHANGED: only check DB exists (no PUT/create)
     async ensureDb(){
       const ah = this.authHeader();
       const r = await fetch(this.base(), {
-        method: 'PUT',
+        method: 'GET',
         headers: ah ? { Authorization: ah } : {},
         credentials: 'include'
       });
-      if (r.status !== 201 && r.status !== 412) throw new Error(await r.text());
+      if (r.status === 404) throw new Error('DB not found. Create it once on the server.');
+      if (!r.ok) throw new Error(await r.text());
+      return r.json().catch(()=>null);
     },
     async fetchJson(path, opts = {}){
       const ah = this.authHeader();
@@ -755,9 +759,8 @@ if ('serviceWorker' in navigator) {
       const res = await fetch(this.base() + path, { ...opts, headers, credentials: 'include' });
       if (!res.ok) {
         const text = await res.text();
-        if (res.status===401) throw new Error('Unauthorized: check user/pass (and DB Permissions Members).');
-        if (res.status===403) throw new Error('Forbidden: your user cannot access this DB.');
-        if (res.status===404 && path==='/') throw new Error('DB not found (wrong name?)');
+        if (res.status===401) throw new Error('Unauthorized: check credentials or DB permissions.');
+        if (res.status===403) throw new Error('Forbidden: user cannot access this DB.');
         throw new Error(text);
       }
       return res.json();
@@ -808,9 +811,9 @@ if ('serviceWorker' in navigator) {
 
   document.getElementById('couchTest').addEventListener('click', async ()=>{
     try{
-      await couch.ensureDb();
-      const info = await couch.fetchJson('');
-      couchMsg().textContent = `OK: ${info.db_name} (doc count ${info.doc_count})`;
+      const info = await couch.ensureDb();            // GET /{db}
+      const dbInfo = info || await couch.fetchJson(''); // fallback GET info
+      couchMsg().textContent = `OK: ${dbInfo.db_name} (doc count ${dbInfo.doc_count})`;
     }catch(err){ couchMsg().textContent = 'Test failed: ' + err.message; }
   });
 
